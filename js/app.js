@@ -2,7 +2,20 @@
 // Silverhawk Submission - Main Application
 // ============================================
 
-const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+let supabaseClient = null;
+
+try {
+  if (typeof CONFIG === 'undefined' || !CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL.includes('YOUR_PROJECT')) {
+    console.error('Config belum diisi. Buka file js/config.js dan ganti SUPABASE_URL + SUPABASE_ANON_KEY');
+  } else {
+    supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  }
+} catch (err) {
+  console.error('Gagal inisialisasi Supabase:', err);
+}
+
+// Alias agar kode lama tetap jalan
+const supabase = supabaseClient;
 
 // State
 let currentUser = null;
