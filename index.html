@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Silverhawk Submission - Aplikasi pengumpulan tugas screenshot untuk santri/siswa" />
+  <title>Silverhawk Submission</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo">
+        <div class="logo-icon">SH</div>
+        <div>
+          <div>Silverhawk Submission</div>
+          <div style="font-size:0.75rem;color:var(--muted);font-weight:400">
+            Pengumpulan Tugas Screenshot
+          </div>
+        </div>
+      </div>
+      <div id="authArea">
+        <button class="btn btn-outline btn-sm" onclick="showLogin()">Login Guru</button>
+      </div>
+    </header>
+
+    <!-- ==================== STUDENT VIEW ==================== -->
+    <div id="studentView">
+      <div class="card">
+        <h2 style="margin-bottom:1.25rem;font-size:1.25rem">Kumpulkan Tugas</h2>
+        <div class="grid grid-2">
+          <div class="form-group">
+            <label>Pilih Kelas</label>
+            <select id="studentClass" onchange="loadStudents()"></select>
+          </div>
+          <div class="form-group">
+            <label>Pilih Nama</label>
+            <select id="studentName" onchange="loadStudentTasks()" disabled>
+              <option value="">-- pilih kelas dulu --</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="taskListArea" class="hidden">
+        <div class="card">
+          <h3 style="margin-bottom:1rem">Daftar Tugas</h3>
+          <div id="taskList" class="grid"></div>
+        </div>
+      </div>
+
+      <div id="submitArea" class="hidden">
+        <div class="card">
+          <h3 style="margin-bottom:0.5rem">Submit Screenshot</h3>
+          <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem" id="currentTaskTitle"></p>
+
+          <div class="paste-zone" id="pasteZone" tabindex="0">
+            <div style="font-size:2rem;margin-bottom:0.5rem">📋</div>
+            <div><strong>Paste di sini</strong> (Ctrl + V) atau klik lalu paste</div>
+            <div style="font-size:0.85rem;color:var(--muted);margin-top:0.4rem">
+              Screenshot akan otomatis di-compress
+            </div>
+          </div>
+
+          <img id="preview" class="preview-img hidden" alt="Preview screenshot" />
+
+          <div style="margin-top:1.25rem;display:flex;gap:0.75rem;flex-wrap:wrap">
+            <button class="btn" id="btnSubmit" disabled onclick="submitTask()">Kirim Tugas</button>
+            <button class="btn btn-outline" onclick="cancelSubmit()">Batal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== LOGIN ==================== -->
+    <div id="loginView" class="hidden">
+      <div class="card" style="max-width:420px;margin:2rem auto">
+        <h2 style="margin-bottom:1.5rem;text-align:center">Login Guru / Admin</h2>
+
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="loginEmail" placeholder="guru@sekolah.com" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" />
+        </div>
+
+        <button class="btn" style="width:100%" onclick="doLogin()">Masuk</button>
+        <button class="btn btn-outline" style="width:100%;margin-top:0.75rem" onclick="showStudent()">
+          Kembali ke Siswa
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div id="dashboardView" class="hidden">
+      <div class="nav-tabs" id="dashTabs">
+        <div class="nav-tab active" data-tab="overview">Overview</div>
+        <div class="nav-tab" data-tab="classes">Kelas & Siswa</div>
+        <div class="nav-tab" data-tab="tasks">Tugas</div>
+        <div class="nav-tab" data-tab="submissions">Pengumpulan</div>
+        <div class="nav-tab admin-only hidden" data-tab="teachers">Kelola Guru</div>
+      </div>
+
+      <!-- Overview -->
+      <div id="tab-overview" class="tab-content">
+        <div class="stats" id="statsCards"></div>
+        <div class="card">
+          <h3 style="margin-bottom:1rem">Siswa yang Belum Mengumpulkan</h3>
+          <div id="missingList"></div>
+        </div>
+      </div>
+
+      <!-- Kelas & Siswa -->
+      <div id="tab-classes" class="tab-content hidden">
+        <div class="grid grid-2">
+          <div class="card">
+            <h3 style="margin-bottom:1rem">Tambah Kelas</h3>
+            <div class="form-group">
+              <input id="newClassName" placeholder="Nama kelas (contoh: X IPA 1)" />
+            </div>
+            <button class="btn btn-sm" onclick="addClass()">Tambah Kelas</button>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:1rem">Tambah Siswa</h3>
+            <div class="form-group">
+              <select id="addStudentClass"></select>
+            </div>
+            <div class="form-group">
+              <input id="newStudentName" placeholder="Nama lengkap siswa" />
+            </div>
+            <button class="btn btn-sm" onclick="addStudent()">Tambah Siswa</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:1rem">Daftar Kelas & Siswa</h3>
+          <div id="classStudentList"></div>
+        </div>
+      </div>
+
+      <!-- Tugas -->
+      <div id="tab-tasks" class="tab-content hidden">
+        <div class="card">
+          <h3 style="margin-bottom:1rem">Buat Tugas Baru</h3>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label>Kelas</label>
+              <select id="newTaskClass"></select>
+            </div>
+            <div class="form-group">
+              <label>Judul Tugas</label>
+              <input id="newTaskTitle" placeholder="Contoh: Screenshot Tugas Matematika" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Deskripsi (opsional)</label>
+            <textarea id="newTaskDesc" rows="2"></textarea>
+          </div>
+          <button class="btn btn-sm" onclick="addTask()">Buat Tugas</button>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:1rem">Daftar Tugas</h3>
+          <div id="taskManageList"></div>
+        </div>
+      </div>
+
+      <!-- Pengumpulan -->
+      <div id="tab-submissions" class="tab-content hidden">
+        <div class="card">
+          <div class="grid grid-2" style="margin-bottom:1rem">
+            <div class="form-group">
+              <label>Filter Kelas</label>
+              <select id="filterClass" onchange="loadSubmissions()"></select>
+            </div>
+            <div class="form-group">
+              <label>Filter Tugas</label>
+              <select id="filterTask" onchange="loadSubmissions()"></select>
+            </div>
+          </div>
+          <div id="submissionTable"></div>
+        </div>
+      </div>
+
+      <!-- Kelola Guru (Admin only) -->
+      <div id="tab-teachers" class="tab-content hidden admin-only">
+        <div class="card">
+          <h3 style="margin-bottom:1rem">Tambah Guru Baru</h3>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <input id="newTeacherEmail" placeholder="Email" type="email" />
+            </div>
+            <div class="form-group">
+              <input id="newTeacherPass" placeholder="Password sementara" type="password" />
+            </div>
+            <div class="form-group">
+              <input id="newTeacherUser" placeholder="Username" />
+            </div>
+            <div class="form-group">
+              <input id="newTeacherName" placeholder="Nama lengkap" />
+            </div>
+          </div>
+          <button class="btn btn-sm" onclick="addTeacher()">Buat Akun Guru</button>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:1rem">Daftar Guru</h3>
+          <div id="teacherList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Popup -->
+  <div class="popup-overlay" id="imgPopup" onclick="closePopup()">
+    <div class="popup-content">
+      <img id="popupImg" alt="Screenshot penuh" />
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
