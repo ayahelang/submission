@@ -2,17 +2,20 @@
 // Silverhawk Submission - Main Application
 // ============================================
 
-let sb = null; // client supabase
+let supabaseClient = null;
 
 try {
   if (typeof CONFIG === 'undefined' || !CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL.includes('YOUR_PROJECT')) {
-    console.error('Config belum diisi dengan benar. Periksa file js/config.js');
+    console.error('Config belum diisi. Buka file js/config.js dan ganti SUPABASE_URL + SUPABASE_ANON_KEY');
   } else {
-    sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
   }
 } catch (err) {
   console.error('Gagal inisialisasi Supabase:', err);
 }
+
+// Alias agar kode lama tetap jalan
+const supabase = supabaseClient;
 
 // State
 let currentUser = null;
@@ -63,11 +66,10 @@ function compressImage(fileOrBlob, maxWidth = CONFIG.IMAGE_MAX_WIDTH, quality = 
 
 // ========== AUTH ==========
 async function checkSession() {
-  if (!sb) return;
-  const { data: { session } } = await sb.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
   if (session) {
     currentUser = session.user;
-    const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    const { data } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
     currentRole = data?.role || 'teacher';
     showDashboard();
   } else {
@@ -76,12 +78,11 @@ async function checkSession() {
 }
 
 async function doLogin() {
-  if (!sb) return toast('Config Supabase belum diisi');
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
   if (!email || !password) return toast('Isi email & password');
 
-  const { error } = await sb.auth.signInWithPassword({ email, password });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return toast(error.message);
 
   toast('Berhasil masuk');
@@ -89,8 +90,7 @@ async function doLogin() {
 }
 
 async function doLogout() {
-  if (!sb) return;
-  await sb.auth.signOut();
+  await supabase.auth.signOut();
   currentUser = null;
   currentRole = null;
   showStudent();
@@ -146,8 +146,7 @@ document.querySelectorAll('.nav-tab').forEach((tab) => {
 
 // ========== STUDENT ==========
 async function loadClasses() {
-  if (!sb) return;
-  const { data } = await sb.from('classes').select('*').order('name');
+  const { data } = await supabase.from('classes').select('*').order('name');
   classesCache = data || [];
   const sel = document.getElementById('studentClass');
   sel.innerHTML =
@@ -156,7 +155,6 @@ async function loadClasses() {
 }
 
 async function loadStudents() {
-  if (!sb) return;
   const classId = document.getElementById('studentClass').value;
   const nameSel = document.getElementById('studentName');
 
@@ -168,7 +166,7 @@ async function loadStudents() {
     return;
   }
 
-  const { data } = await sb
+  const { data } = await supabase
     .from('students')
     .select('*')
     .eq('class_id', classId)
@@ -184,7 +182,6 @@ async function loadStudents() {
 }
 
 async function loadStudentTasks() {
-  if (!sb) return;
   selectedStudentId = document.getElementById('studentName').value;
   if (!selectedStudentId) {
     hide('taskListArea');
@@ -192,13 +189,13 @@ async function loadStudentTasks() {
   }
 
   const classId = document.getElementById('studentClass').value;
-  const { data: tasks } = await sb
+  const { data: tasks } = await supabase
     .from('tasks')
     .select('*')
     .eq('class_id', classId)
     .order('created_at', { ascending: false });
 
-  const { data: subs } = await sb
+  const { data: subs } = await supabase
     .from('submissions')
     .select('task_id')
     .eq('student_id', selectedStudentId);
@@ -251,37 +248,36 @@ function cancelSubmit() {
 }
 
 // Paste handler
-document.addEventListener('DOMContentLoaded', () => {
-  const pasteZone = document.getElementById('pasteZone');
-  if (pasteZone) {
-    pasteZone.addEventListener('paste', async (e) => {
-      e.preventDefault();
-      const items = e.clipboardData?.items;
-      if (!items) return;
+const pasteZone = document.getElementById('pasteZone');
+if (pasteZone) {
+  pasteZone.addEventListener('paste', async (e) => {
+    e.preventDefault();
+    const items = e.clipboardData?.items;
+    if (!items) return;
 
-      for (const item of items) {
-        if (item.type.startsWith('image/')) {
-          const blob = item.getAsFile();
-          pastedImageBase64 = await compressImage(blob);
-          const preview = document.getElementById('preview');
-          preview.src = pastedImageBase64;
-          preview.classList.remove('hidden');
-          document.getElementById('btnSubmit').disabled = false;
-          toast('Screenshot siap dikirim');
-          break;
-        }
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        pastedImageBase64 = await compressImage(blob);
+        const preview = document.getElementById('preview');
+        preview.src = pastedImageBase64;
+        preview.classList.remove('hidden');
+        document.getElementById('btnSubmit').disabled = false;
+        toast('Screenshot siap dikirim');
+        break;
       }
-    });
-    pasteZone.addEventListener('click', () => pasteZone.focus());
-  }
-});
+    }
+  });
+
+  pasteZone.addEventListener('click', () => pasteZone.focus());
+}
 
 async function submitTask() {
-  if (!sb || !pastedImageBase64 || !selectedTaskId || !selectedStudentId) return;
+  if (!pastedImageBase64 || !selectedTaskId || !selectedStudentId) return;
 
   document.getElementById('btnSubmit').disabled = true;
 
-  const { error } = await sb.from('submissions').upsert(
+  const { error } = await supabase.from('submissions').upsert(
     {
       student_id: selectedStudentId,
       task_id: selectedTaskId,
@@ -308,8 +304,7 @@ async function loadDashboard() {
 }
 
 async function loadClassesForTeacher() {
-  if (!sb) return;
-  const { data } = await sb.from('classes').select('*').order('name');
+  const { data } = await supabase.from('classes').select('*').order('name');
   classesCache = data || [];
 
   ['addStudentClass', 'newTaskClass', 'filterClass'].forEach((id) => {
@@ -323,12 +318,11 @@ async function loadClassesForTeacher() {
 }
 
 async function loadOverview() {
-  if (!sb) return;
   const [{ data: classes }, { data: students }, { data: tasks }, { data: subs }] = await Promise.all([
-    sb.from('classes').select('id'),
-    sb.from('students').select('id'),
-    sb.from('tasks').select('id'),
-    sb.from('submissions').select('id')
+    supabase.from('classes').select('id'),
+    supabase.from('students').select('id'),
+    supabase.from('tasks').select('id'),
+    supabase.from('submissions').select('id')
   ]);
 
   document.getElementById('statsCards').innerHTML = `
@@ -338,9 +332,9 @@ async function loadOverview() {
     <div class="stat-card"><div class="num">${subs?.length || 0}</div><div>Pengumpulan</div></div>
   `;
 
-  const { data: allTasks } = await sb.from('tasks').select('id,title,class_id');
-  const { data: allStudents } = await sb.from('students').select('id,name,class_id');
-  const { data: allSubs } = await sb.from('submissions').select('student_id,task_id');
+  const { data: allTasks } = await supabase.from('tasks').select('id,title,class_id');
+  const { data: allStudents } = await supabase.from('students').select('id,name,class_id');
+  const { data: allSubs } = await supabase.from('submissions').select('student_id,task_id');
 
   const submittedSet = new Set((allSubs || []).map((s) => s.student_id + '_' + s.task_id));
   let missingHtml = '';
@@ -364,11 +358,10 @@ async function loadOverview() {
 }
 
 async function addClass() {
-  if (!sb) return;
   const name = document.getElementById('newClassName').value.trim();
   if (!name) return toast('Isi nama kelas');
 
-  const { error } = await sb.from('classes').insert({
+  const { error } = await supabase.from('classes').insert({
     name,
     created_by: currentUser.id
   });
@@ -381,12 +374,11 @@ async function addClass() {
 }
 
 async function addStudent() {
-  if (!sb) return;
   const classId = document.getElementById('addStudentClass').value;
   const name = document.getElementById('newStudentName').value.trim();
   if (!classId || !name) return toast('Lengkapi data');
 
-  const { error } = await sb.from('students').insert({ class_id: classId, name });
+  const { error } = await supabase.from('students').insert({ class_id: classId, name });
   if (error) return toast(error.message);
 
   toast('Siswa ditambahkan');
@@ -395,8 +387,7 @@ async function addStudent() {
 }
 
 async function loadClassStudentList() {
-  if (!sb) return;
-  const { data: classes } = await sb
+  const { data: classes } = await supabase
     .from('classes')
     .select('*, students(*)')
     .order('name');
@@ -417,13 +408,12 @@ async function loadClassStudentList() {
 }
 
 async function addTask() {
-  if (!sb) return;
   const classId = document.getElementById('newTaskClass').value;
   const title = document.getElementById('newTaskTitle').value.trim();
   const desc = document.getElementById('newTaskDesc').value.trim();
   if (!classId || !title) return toast('Lengkapi data');
 
-  const { error } = await sb.from('tasks').insert({
+  const { error } = await supabase.from('tasks').insert({
     class_id: classId,
     title,
     description: desc || null,
@@ -438,8 +428,7 @@ async function addTask() {
 }
 
 async function loadTaskManageList() {
-  if (!sb) return;
-  const { data } = await sb
+  const { data } = await supabase
     .from('tasks')
     .select('*, classes(name)')
     .order('created_at', { ascending: false });
@@ -460,26 +449,24 @@ async function loadTaskManageList() {
 }
 
 async function deleteTask(id) {
-  if (!sb) return;
   if (!confirm('Hapus tugas ini beserta semua pengumpulannya?')) return;
-  await sb.from('tasks').delete().eq('id', id);
+  await supabase.from('tasks').delete().eq('id', id);
   toast('Tugas dihapus');
   loadTaskManageList();
 }
 
 async function loadSubmissions() {
-  if (!sb) return;
   const classId = document.getElementById('filterClass').value;
   const taskId = document.getElementById('filterTask').value;
 
   if (classId) {
-    const { data: tasks } = await sb.from('tasks').select('id,title').eq('class_id', classId);
+    const { data: tasks } = await supabase.from('tasks').select('id,title').eq('class_id', classId);
     document.getElementById('filterTask').innerHTML =
       '<option value="">Semua tugas</option>' +
       (tasks || []).map((t) => `<option value="${t.id}">${t.title}</option>`).join('');
   }
 
-  let query = sb
+  let query = supabase
     .from('submissions')
     .select('*, students(name, class_id), tasks(title)')
     .order('submitted_at', { ascending: false });
@@ -487,7 +474,7 @@ async function loadSubmissions() {
   if (taskId) {
     query = query.eq('task_id', taskId);
   } else if (classId) {
-    const { data: tasks } = await sb.from('tasks').select('id').eq('class_id', classId);
+    const { data: tasks } = await supabase.from('tasks').select('id').eq('class_id', classId);
     const ids = (tasks || []).map((t) => t.id);
     if (ids.length) {
       query = query.in('task_id', ids);
@@ -560,13 +547,12 @@ function closePopup() {
 }
 
 async function gradeSubmission(id, current) {
-  if (!sb) return;
   const grade = prompt('Masukkan nilai (0-100):', current ?? '');
   if (grade === null) return;
 
   const notes = prompt('Catatan (opsional):') || null;
 
-  const { error } = await sb
+  const { error } = await supabase
     .from('submissions')
     .update({
       grade: parseFloat(grade) || null,
@@ -581,16 +567,14 @@ async function gradeSubmission(id, current) {
 }
 
 async function deleteSubmission(id) {
-  if (!sb) return;
   if (!confirm('Hapus screenshot ini?')) return;
-  await sb.from('submissions').delete().eq('id', id);
+  await supabase.from('submissions').delete().eq('id', id);
   toast('Dihapus');
   loadSubmissions();
 }
 
 // ========== ADMIN: TEACHERS ==========
 async function addTeacher() {
-  if (!sb) return;
   const email = document.getElementById('newTeacherEmail').value.trim();
   const pass = document.getElementById('newTeacherPass').value;
   const username = document.getElementById('newTeacherUser').value.trim();
@@ -598,7 +582,7 @@ async function addTeacher() {
 
   if (!email || !pass || !username) return toast('Lengkapi data');
 
-  const { error } = await sb.auth.signUp({
+  const { error } = await supabase.auth.signUp({
     email,
     password: pass,
     options: {
@@ -612,8 +596,7 @@ async function addTeacher() {
 }
 
 async function loadTeachers() {
-  if (!sb) return;
-  const { data } = await sb.from('profiles').select('*').order('created_at');
+  const { data } = await supabase.from('profiles').select('*').order('created_at');
 
   document.getElementById('teacherList').innerHTML =
     (data || [])
@@ -641,9 +624,8 @@ async function loadTeachers() {
 }
 
 async function deleteTeacher(id) {
-  if (!sb) return;
   if (!confirm('Hapus akun guru ini?')) return;
-  await sb.from('profiles').delete().eq('id', id);
+  await supabase.from('profiles').delete().eq('id', id);
   toast('Profil guru dihapus (hapus juga di Auth Dashboard jika perlu)');
   loadTeachers();
 }
